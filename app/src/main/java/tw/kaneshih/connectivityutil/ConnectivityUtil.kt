@@ -11,15 +11,20 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
 import android.util.Log
+import androidx.annotation.MainThread
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import java.net.NetworkInterface
 
+private const val TAG = "ConnectivityUtil"
+
 object ConnectivityUtil {
     private var isInit = false
 
     private val networkStateLiveData = MutableLiveData<NetworkState>()
+
+    private lateinit var cm: ConnectivityManager
 
     @JvmStatic
     fun getNetworkState(): LiveData<NetworkState> {
@@ -27,52 +32,67 @@ object ConnectivityUtil {
     }
 
     @JvmStatic
-    fun init(context: Context) {
+    @MainThread
+    fun init(context: Context, isDebug: Boolean) {
         if (!isInit) {
             isInit = true
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                initFor23(cm)
+                initFor23()
             } else {
-                initFor21(context, cm)
+                initFor21(context)
+            }
+
+            if (isDebug) {
+                networkStateLiveData.observeForever {
+                    Log.d(
+                        TAG,
+                        "onNetworkChanged: isConnected:${it.isConnected()} / WiFi:${it.isWiFiConnected()} / Mobile:${it.isMobileConnected()}"
+                    )
+                }
             }
         }
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
-    private fun initFor23(cm: ConnectivityManager): NetworkState {
+    @MainThread
+    private fun initFor23(): NetworkState {
         val state = NetworkStateImpl23()
-        cm.registerNetworkCallback(NetworkRequest.Builder().build(),
-                                   object : NetworkCallback() {
-                                       override fun onAvailable(network: Network) {
-                                           Log.d("Kane", "onA $network")
-                                           state.networkList.add(0, network)
-                                           state.capabilitiesMap[network] = null
-                                           // notifyConnectivityChanged() is called at onCapabilitiesChanged()
-                                       }
+        cm.registerNetworkCallback(
+            NetworkRequest.Builder().build(),
+            object : NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    Log.d(TAG, "onA $network")
+                    state.networkList.add(0, network)
+                    val capabilities = cm.getNetworkCapabilities(network)
+                    state.capabilitiesMap[network] = capabilities
+                    if (capabilities != null) {
+                        networkStateLiveData.postValue(state)
+                    }
+                }
 
-                                       override fun onLost(network: Network) {
-                                           Log.d("Kane", "onLost $network")
-                                           state.networkList.remove(network)
-                                           state.capabilitiesMap[network] = null
-                                           networkStateLiveData.postValue(state)
-                                       }
+                override fun onLost(network: Network) {
+                    Log.d(TAG, "onLost $network")
+                    state.networkList.remove(network)
+                    state.capabilitiesMap[network] = null
+                    networkStateLiveData.postValue(state)
+                }
 
-                                       override fun onCapabilitiesChanged(
-                                           network: Network,
-                                           networkCapabilities: NetworkCapabilities
-                                       ) {
-                                           Log.d("Kane", "onCapCh $network")
-                                           if (network !in state.networkList
-                                               && networkCapabilities.hasWiFiOrMobileTransport()
-                                           ) {
-                                               state.networkList.add(0, network)
-                                           }
-                                           state.capabilitiesMap[network] = networkCapabilities
-                                           networkStateLiveData.postValue(state)
-                                       }
-                                   })
-        updateStateAndNotify(cm, state)
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    networkCapabilities: NetworkCapabilities
+                ) {
+                    Log.d(TAG, "onCapCh $network")
+                    if (network !in state.networkList
+                        && networkCapabilities.hasInternet()
+                    ) {
+                        state.networkList.add(0, network)
+                    }
+                    state.capabilitiesMap[network] = networkCapabilities
+                    networkStateLiveData.postValue(state)
+                }
+            })
+        updateStateAndNotify(state)
         return state
     }
 
@@ -82,27 +102,30 @@ object ConnectivityUtil {
     private fun NetworkCapabilities.hasMobileTransport() =
         this.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
 
-    private fun NetworkCapabilities.hasWiFiOrMobileTransport() =
-        hasWiFiTransport() || hasMobileTransport()
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun NetworkCapabilities.hasInternet() =
+        this.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && this.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 
     @Suppress("DEPRECATION")
-    private fun initFor21(context: Context, cm: ConnectivityManager): NetworkState {
+    @MainThread
+    private fun initFor21(context: Context): NetworkState {
         val state = NetworkStateImpl21()
         val intentFilter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
         context.registerReceiver(object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (ConnectivityManager.CONNECTIVITY_ACTION == intent.action) {
-                    updateStateAndNotify(cm, state)
+                    updateStateAndNotify(state)
                 }
             }
         }, intentFilter)
-        updateStateAndNotify(cm, state)
+        updateStateAndNotify(state)
         return state
     }
 
     @Suppress("DEPRECATION")
+    @MainThread
     private fun updateStateAndNotify(
-        cm: ConnectivityManager,
         stateImpl21: NetworkStateImpl21
     ) {
         val activeNetwork = cm.activeNetworkInfo
@@ -116,12 +139,12 @@ object ConnectivityUtil {
             stateImpl21.isWiFi = false
             stateImpl21.isMobile = false
         }
-        networkStateLiveData.postValue(stateImpl21)
+        networkStateLiveData.value = stateImpl21
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
+    @MainThread
     private fun updateStateAndNotify(
-        cm: ConnectivityManager,
         stateImpl23: NetworkStateImpl23
     ) {
         val network = cm.activeNetwork
@@ -129,7 +152,7 @@ object ConnectivityUtil {
             stateImpl23.networkList.add(0, network)
             stateImpl23.capabilitiesMap[network] = cm.getNetworkCapabilities(network)
         }
-        networkStateLiveData.postValue(stateImpl23)
+        networkStateLiveData.value = stateImpl23
     }
 
     @JvmStatic
@@ -211,8 +234,11 @@ object ConnectivityUtil {
             } ?: false
         }
 
+        @RequiresApi(Build.VERSION_CODES.M)
         override fun isConnected(): Boolean {
-            return isWiFiConnected() || isMobileConnected()
+            return networkList.firstOrNull()?.let {
+                capabilitiesMap[it]?.hasInternet()
+            } ?: false
         }
     }
 }

@@ -14,7 +14,7 @@ public class App extends Application {
         Log.d("Kane", "App onCreate");
 
         Log.d("Kane", "init, API " + Build.VERSION.SDK_INT);
-        ConnectivityUtil.init(this);
+        ConnectivityUtil.init(this, BuildConfig.DEBUG);
 
         Log.d("Kane", "first ..." +
                       " isConnected?" + ConnectivityUtil.isConnected() +
