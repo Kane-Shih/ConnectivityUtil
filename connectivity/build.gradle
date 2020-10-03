@@ -2,6 +2,9 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 
+apply from: 'install.gradle'
+apply from: 'bintray.gradle'
+
 android {
     compileSdkVersion rootProject.ext.compile_sdk
 
@@ -20,6 +23,12 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+repositories {
+    maven {
+        url 'https://maven.google.com'
     }
 }
 
