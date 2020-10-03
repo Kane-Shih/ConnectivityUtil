@@ -31,4 +31,6 @@ val isWiFi = ConnectivityUtil.isWiFiConnected
 val isMobile = ConnectivityUtil.isMobileConnected
 ```
 
+See `app` for demo.
+
 
