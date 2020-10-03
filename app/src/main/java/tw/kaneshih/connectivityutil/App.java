@@ -5,6 +5,7 @@ import android.os.Build;
 import android.util.Log;
 
 import androidx.lifecycle.Observer;
+import tw.kaneshih.connectivity.ConnectivityUtil;
 
 public class App extends Application {
     @Override

@@ -1,4 +1,4 @@
-package tw.kaneshih.connectivityutil
+package tw.kaneshih.connectivity
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -15,7 +15,6 @@ import androidx.annotation.MainThread
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import java.net.NetworkInterface
 
 private const val TAG = "ConnectivityUtil"
 
@@ -166,33 +165,6 @@ object ConnectivityUtil {
     @JvmStatic
     val isMobileConnected: Boolean
         get() = networkStateLiveData.value?.isMobileConnected() == true
-
-    // ipv6
-    @JvmStatic
-    val localIpAddress: String
-        get() {
-            try {
-                val en = NetworkInterface.getNetworkInterfaces()
-                while (en.hasMoreElements()) {
-                    val intf = en.nextElement()
-                    val enumIpAddr = intf.inetAddresses
-                    while (enumIpAddr.hasMoreElements()) {
-                        val inetAddress = enumIpAddr.nextElement()
-                        if (!inetAddress.isLoopbackAddress) {
-                            val ipAddr = inetAddress.hostAddress
-                            if (ipAddr.indexOf(':') > 0) { // ipv6
-                                val p = ipAddr.indexOf('%')
-                                return if (p < 0) ipAddr else ipAddr.substring(0, p)
-                            }
-                            return inetAddress.hostAddress
-                        }
-                    }
-                }
-            } catch (e: Throwable) {
-                e.printStackTrace()
-            }
-            return "127.0.0.1"
-        }
 
     interface NetworkState {
         fun isWiFiConnected(): Boolean

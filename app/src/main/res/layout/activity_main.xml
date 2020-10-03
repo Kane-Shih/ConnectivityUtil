@@ -17,20 +17,11 @@
         tools:text="network state" />
 
     <TextView
-        android:id="@+id/ipAddr"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        app:layout_constraintStart_toStartOf="@id/networkState"
-        app:layout_constraintTop_toBottomOf="@id/networkState"
-        tools:text="local ip address" />
-
-    <TextView
         android:id="@+id/apiLevel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:layout_constraintStart_toStartOf="@id/ipAddr"
-        app:layout_constraintTop_toBottomOf="@id/ipAddr"
+        app:layout_constraintStart_toStartOf="@id/networkState"
+        app:layout_constraintTop_toBottomOf="@id/networkState"
         tools:text="api level" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
